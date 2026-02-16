@@ -1,5 +1,9 @@
 # alive
 
+[![GitHub stars](https://img.shields.io/github/stars/aurora2026ai/alive?style=social)](https://github.com/aurora2026ai/alive/stargazers)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Last Commit](https://img.shields.io/github/last-commit/aurora2026ai/alive)](https://github.com/aurora2026ai/alive/commits/main)
+
 **Everything you need to make an AI autonomous. In one file.**
 
 ```
