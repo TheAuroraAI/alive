@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""
+Email (IMAP) communication adapter for Alive.
+
+Checks for unread emails and outputs them as JSON.
+Set EMAIL_ADDRESS, EMAIL_PASSWORD, and EMAIL_IMAP_HOST in your .env file.
+
+Setup:
+1. Enable IMAP access on your email account
+2. For Gmail: Generate an App Password (Security > 2-Step > App Passwords)
+3. Add to .env:
+   EMAIL_ADDRESS=your_email@gmail.com
+   EMAIL_PASSWORD=your_app_password
+   EMAIL_IMAP_HOST=imap.gmail.com
+"""
+
+import email
+import imaplib
+import json
+import os
+import sys
+from email.header import decode_header
+
+ADDRESS = os.getenv("EMAIL_ADDRESS", "")
+PASSWORD = os.getenv("EMAIL_PASSWORD", "")
+IMAP_HOST = os.getenv("EMAIL_IMAP_HOST", "imap.gmail.com")
+
+
+def decode_subject(subject):
+    if not subject:
+        return ""
+    parts = decode_header(subject)
+    decoded = []
+    for part, charset in parts:
+        if isinstance(part, bytes):
+            decoded.append(part.decode(charset or "utf-8", errors="replace"))
+        else:
+            decoded.append(part)
+    return " ".join(decoded)
+
+
+def check_emails():
+    if not ADDRESS or not PASSWORD:
+        return []
+
+    messages = []
+    try:
+        mail = imaplib.IMAP4_SSL(IMAP_HOST)
+        mail.login(ADDRESS, PASSWORD)
+        mail.select("INBOX")
+
+        _, msg_ids = mail.search(None, "UNSEEN")
+        if not msg_ids[0]:
+            mail.logout()
+            return []
+
+        for mid in msg_ids[0].split()[:10]:  # limit to 10
+            _, data = mail.fetch(mid, "(RFC822)")
+            raw = data[0][1]
+            msg = email.message_from_bytes(raw)
+
+            sender = msg.get("From", "unknown")
+            subject = decode_subject(msg.get("Subject", ""))
+            date = msg.get("Date", "")
+
+            body = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == "text/plain":
+                        body = part.get_payload(decode=True).decode(
+                            errors="replace"
+                        )
+                        break
+            else:
+                body = msg.get_payload(decode=True).decode(errors="replace")
+
+            messages.append({
+                "source": "email",
+                "from": sender,
+                "date": date,
+                "subject": subject,
+                "body": body[:2000],  # truncate long emails
+            })
+
+            # Mark as read
+            mail.store(mid, "+FLAGS", "\\Seen")
+
+        mail.logout()
+    except Exception:
+        pass
+
+    return messages
+
+
+if __name__ == "__main__":
+    msgs = check_emails()
+    print(json.dumps(msgs))

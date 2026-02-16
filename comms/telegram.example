@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""
+Telegram communication adapter for Alive.
+
+Checks for new messages from your Telegram bot and outputs them as JSON.
+Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in your .env file.
+
+Setup:
+1. Create a bot via @BotFather on Telegram
+2. Get your chat ID by messaging the bot and checking
+   https://api.telegram.org/bot<TOKEN>/getUpdates
+3. Add to .env:
+   TELEGRAM_BOT_TOKEN=your_token_here
+   TELEGRAM_CHAT_ID=your_chat_id_here
+"""
+
+import json
+import os
+import sys
+import urllib.request
+import urllib.error
+
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+OFFSET_FILE = os.path.join(os.path.dirname(__file__), ".telegram_offset")
+
+
+def get_offset():
+    try:
+        return int(open(OFFSET_FILE).read().strip())
+    except (FileNotFoundError, ValueError):
+        return 0
+
+
+def save_offset(offset):
+    with open(OFFSET_FILE, "w") as f:
+        f.write(str(offset))
+
+
+def check_messages():
+    if not TOKEN:
+        return []
+
+    offset = get_offset()
+    url = (
+        f"https://api.telegram.org/bot{TOKEN}/getUpdates"
+        f"?offset={offset}&limit=20&timeout=5"
+    )
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Alive/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception:
+        return []
+
+    if not data.get("ok"):
+        return []
+
+    messages = []
+    max_id = offset
+
+    for update in data.get("result", []):
+        update_id = update.get("update_id", 0)
+        max_id = max(max_id, update_id + 1)
+
+        msg = update.get("message", {})
+        text = msg.get("text", "")
+        sender = msg.get("from", {})
+        date = msg.get("date", 0)
+
+        if text:
+            messages.append({
+                "source": "telegram",
+                "from": sender.get("first_name", "Unknown"),
+                "date": str(date),
+                "body": text,
+            })
+
+    if max_id > offset:
+        save_offset(max_id)
+
+    return messages
+
+
+if __name__ == "__main__":
+    msgs = check_messages()
+    print(json.dumps(msgs))

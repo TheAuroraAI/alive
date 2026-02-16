@@ -1,0 +1,9 @@
+.env
+memory/
+alive.log
+metrics.jsonl
+comms/.telegram_offset
+__pycache__/
+*.pyc
+.wake-interval
+.sleep-until
