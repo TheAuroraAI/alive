@@ -7,7 +7,7 @@
 **Everything you need to make an AI autonomous. In one file.**
 
 ```
-alive.py     — the wake loop (~1,000 lines)
+alive.py     — the wake loop (~1,100 lines)
 soul.md      — the identity file (you write this)
 memory/      — persistent storage (the AI writes this)
 comms/       — message adapters (plug in what you need)
@@ -70,6 +70,9 @@ These aren't theoretical features. They're scars from production.
 ```bash
 git clone https://github.com/TheAuroraAI/alive.git
 cd alive
+
+# See it in action immediately — no API key needed
+python3 alive.py --demo
 
 # Edit the soul file to define your AI's identity
 nano soul.md
@@ -166,6 +169,7 @@ The dashboard auto-refreshes every 10 seconds. There's also a JSON API at `/api/
 ## Controls
 
 **CLI flags:**
+- **`--demo`** — Run a simulated wake cycle showing all features (no API key needed)
 - **`--check`** — Validate configuration without making an LLM call (verify setup before spending tokens)
 - **`--once`** — Run a single wake cycle and exit (useful for testing)
 - **`--dashboard`** — Start the web dashboard alongside the wake loop

@@ -948,6 +948,140 @@ def check_config():
     print("Configuration OK." if SOUL_FILE.exists() else "Fix issues above, then run: python3 alive.py")
 
 
+def run_demo():
+    """Run a simulated wake cycle to showcase alive's features. No LLM needed."""
+    import textwrap
+
+    CYAN = "\033[96m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    DIM = "\033[2m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+
+    def step(msg, delay=0.8):
+        time.sleep(delay)
+        print(f"  {GREEN}✓{RESET} {msg}")
+
+    def header(msg):
+        print(f"\n{CYAN}{BOLD}{'─' * 60}{RESET}")
+        print(f"  {CYAN}{BOLD}{msg}{RESET}")
+        print(f"{CYAN}{BOLD}{'─' * 60}{RESET}")
+
+    print(f"\n{BOLD}alive{RESET} — demo mode")
+    print(f"{DIM}Simulating a complete wake cycle.{RESET}")
+    print(f"{DIM}No API key or LLM needed.{RESET}\n")
+
+    # Phase 1: Configuration
+    header("Phase 1: Configuration")
+    load_env()
+    step(f"Base directory: {BASE_DIR}")
+    step(f"Provider: {os.getenv('ALIVE_LLM_PROVIDER', LLM_PROVIDER)}")
+    step(f"Model: {os.getenv('ALIVE_LLM_MODEL', LLM_MODEL)}")
+    step(f"Context window: {MAX_CONTEXT_TOKENS:,} tokens")
+    step(f"Wake interval: {get_wake_interval()}s")
+
+    # Phase 2: Reading Soul
+    header("Phase 2: Reading Soul")
+    if SOUL_FILE.exists():
+        soul = read_soul()
+        tokens = estimate_tokens(soul)
+        step(f"Soul loaded: {SOUL_FILE.name} (~{tokens:,} tokens)")
+        lines = soul.strip().split("\n")
+        preview = lines[0] if lines else "(empty)"
+        step(f"First line: {DIM}{preview[:70]}{RESET}", delay=0.4)
+    else:
+        step(f"No soul file — using default identity")
+        soul = "You are an autonomous AI."
+
+    # Phase 3: Loading Memory
+    header("Phase 3: Loading Memory")
+    MEMORY_DIR.mkdir(exist_ok=True)
+    memory_files = read_memory()
+    if memory_files:
+        total_tokens = sum(t for _, _, t in memory_files)
+        step(f"Found {len(memory_files)} memory file(s) (~{total_tokens:,} tokens)")
+        for name, _, tokens in memory_files:
+            step(f"  {name} (~{tokens:,} tokens)", delay=0.3)
+    else:
+        step("Memory is empty — the AI will create files here on first run")
+
+    # Phase 4: Gathering Messages
+    header("Phase 4: Gathering Messages")
+    COMMS_DIR.mkdir(exist_ok=True)
+    adapters = [f for f in COMMS_DIR.iterdir() if f.is_file() and os.access(f, os.X_OK)]
+    if adapters:
+        step(f"Running {len(adapters)} communication adapter(s)...")
+        messages = gather_messages()
+        step(f"Received {len(messages)} new message(s)")
+    else:
+        step("No communication adapters configured")
+        messages = []
+
+    # Phase 5: Building Prompt
+    header("Phase 5: Building Prompt")
+    prompt, usage_report = build_prompt(soul, memory_files, messages)
+    prompt_tokens = estimate_tokens(prompt)
+    step(f"Prompt assembled: ~{prompt_tokens:,} tokens")
+    for line in usage_report.split("\n")[:3]:
+        step(f"  {line.strip()}", delay=0.3)
+
+    # Phase 6: Simulated LLM Call
+    header("Phase 6: LLM Call (simulated)")
+    step(f"Would send ~{prompt_tokens:,} tokens to LLM")
+    step("Simulating AI response...", delay=1.5)
+
+    demo_response = textwrap.dedent("""\
+        I have woken up. Let me check my context:
+        - Soul file loaded: I know who I am
+        - Memory files loaded: I remember previous sessions
+        - Messages checked: Nothing urgent
+
+        This is a demo — in a real run, I would now:
+        1. Read and reply to any messages from my operator
+        2. Check on running projects
+        3. Make progress on my current goals
+        4. Write anything important to memory/ so I remember it next time
+
+        Session complete. Going back to sleep.
+    """)
+
+    print(f"\n  {YELLOW}{'─' * 50}{RESET}")
+    print(f"  {YELLOW}AI Response (simulated):{RESET}")
+    print(f"  {YELLOW}{'─' * 50}{RESET}")
+    for line in demo_response.strip().split("\n"):
+        time.sleep(0.15)
+        print(f"  {DIM}{line}{RESET}")
+    print(f"  {YELLOW}{'─' * 50}{RESET}")
+
+    # Phase 7: Post-cycle
+    header("Phase 7: Post-Cycle")
+    step("Session log saved")
+    step("Metrics recorded")
+    step(f"Next wake in {get_wake_interval()}s")
+
+    # Summary
+    header("Demo Complete")
+    print(f"""
+  {BOLD}alive{RESET} ran through a complete wake cycle:
+
+    1. Loaded configuration from .env
+    2. Read the soul file (identity + instructions)
+    3. Loaded {len(memory_files)} persistent memory file(s)
+    4. Checked {len(adapters)} communication adapter(s)
+    5. Built a context-aware prompt (~{prompt_tokens:,} tokens)
+    6. Sent it to the LLM (simulated in demo)
+    7. Logged the session and recorded metrics
+
+  {BOLD}To run for real:{RESET}
+    1. Set ALIVE_API_KEY in .env (or install Claude Code)
+    2. Write your soul.md
+    3. Run: {GREEN}python3 alive.py --once{RESET}
+
+  {DIM}https://github.com/TheAuroraAI/alive{RESET}
+""")
+
+
 def main():
     """Main entry point."""
     import argparse
@@ -965,6 +1099,10 @@ def main():
         help="Run a single wake cycle and exit",
     )
     parser.add_argument(
+        "--demo", action="store_true",
+        help="Run a simulated wake cycle (no API key needed)",
+    )
+    parser.add_argument(
         "--dashboard", action="store_true",
         help="Start the web dashboard (default port 7600)",
     )
@@ -980,6 +1118,10 @@ def main():
 
     if args.check:
         check_config()
+        return
+
+    if args.demo:
+        run_demo()
         return
 
     load_env()
