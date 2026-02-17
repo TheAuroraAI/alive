@@ -43,8 +43,10 @@ DEFAULT_WAKE_INTERVAL = 300  # seconds
 WAKE_INTERVAL_FILE = BASE_DIR / ".wake-interval"
 SLEEP_UNTIL_FILE = BASE_DIR / ".sleep-until"
 KILLED_FLAG = BASE_DIR / ".killed"
+WAKE_NOW_FILE = BASE_DIR / ".wake-now"
 METRICS_FILE = BASE_DIR / "metrics.jsonl"
 SESSION_LOG_DIR = LOGS_DIR / "sessions"
+LAST_SESSION_FILE = BASE_DIR / ".last-session"
 
 # Context window management
 MAX_CONTEXT_TOKENS = 200_000  # Override via ALIVE_MAX_CONTEXT_TOKENS
@@ -252,6 +254,10 @@ def build_prompt(soul: str, memory_files: list, messages: list) -> tuple[str, st
     soul_tokens = estimate_tokens(soul)
     overhead_tokens = 500  # section headers, report, etc.
 
+    # Session continuity — tail of last session
+    last_session = read_last_session()
+    last_session_tokens = estimate_tokens(last_session) if last_session else 0
+
     # Format messages
     msg_parts = []
     for msg in messages:
@@ -263,7 +269,7 @@ def build_prompt(soul: str, memory_files: list, messages: list) -> tuple[str, st
     msg_text = "\n\n".join(msg_parts)
     msg_tokens = estimate_tokens(msg_text) if msg_parts else 0
 
-    used_tokens = soul_tokens + msg_tokens + overhead_tokens
+    used_tokens = soul_tokens + msg_tokens + last_session_tokens + overhead_tokens
 
     # Load memory files until budget is exhausted (newest first)
     loaded = []
@@ -292,6 +298,8 @@ def build_prompt(soul: str, memory_files: list, messages: list) -> tuple[str, st
         report_lines.append(f"  memory/{name}: ~{tokens:,} tokens")
     if msg_tokens:
         report_lines.append(f"  [messages]: ~{msg_tokens:,} tokens")
+    if last_session_tokens:
+        report_lines.append(f"  [last session]: ~{last_session_tokens:,} tokens")
     if skipped:
         report_lines.append(f"  [skipped]: {len(skipped)} file(s) did not fit")
     usage_report = "\n".join(report_lines)
@@ -321,6 +329,10 @@ def build_prompt(soul: str, memory_files: list, messages: list) -> tuple[str, st
     # Messages
     if msg_parts:
         sections.append("=== NEW MESSAGES ===\n" + msg_text)
+
+    # Last session (continuity across context resets)
+    if last_session:
+        sections.append("=== LAST SESSION ===\n" + last_session)
 
     # Time and session info
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -356,6 +368,8 @@ def call_llm(prompt: str) -> str:
                 return _call_anthropic(prompt, model, api_key)
             elif provider == "openai":
                 return _call_openai(prompt, model, api_key)
+            elif provider == "ollama":
+                return _call_ollama(prompt, model)
             else:
                 raise ValueError(f"Unknown LLM provider: {provider}")
         except Exception as e:
@@ -397,6 +411,44 @@ def _call_openai(prompt: str, model: str, api_key: str) -> str:
         messages=[{"role": "user", "content": prompt}],
     )
     return response.choices[0].message.content
+
+
+def _call_ollama(prompt: str, model: str) -> str:
+    """
+    Call a local Ollama instance. Zero dependencies — uses urllib.
+
+    Ollama runs on localhost:11434 by default. Install from https://ollama.com
+    Set ALIVE_LLM_PROVIDER=ollama and ALIVE_LLM_MODEL=llama3.1 (or any model).
+
+    This enables fully local, private autonomous AI with no API costs.
+    """
+    import urllib.request
+    import urllib.error
+
+    base_url = os.getenv("ALIVE_OLLAMA_URL", "http://localhost:11434")
+    url = f"{base_url}/api/chat"
+
+    payload = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+    }).encode()
+
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=SESSION_TIMEOUT) as resp:
+            data = json.loads(resp.read())
+            return data.get("message", {}).get("content", "")
+    except urllib.error.URLError as e:
+        raise RuntimeError(
+            f"Ollama not reachable at {base_url}. "
+            f"Install from https://ollama.com and run: ollama pull {model}"
+        ) from e
 
 
 def _call_claude_code(prompt: str) -> str:
@@ -484,6 +536,22 @@ def save_session_log(output: str):
         log.info(f"Session log: {path.name} ({len(output)} chars)")
     except OSError as e:
         log.warning(f"Failed to save session log: {e}")
+
+    # Session continuity: save tail for next session's context
+    try:
+        LAST_SESSION_FILE.write_text(output[-500:], encoding="utf-8")
+    except OSError:
+        pass
+
+
+def read_last_session() -> str:
+    """Read the tail of the previous session for continuity across context resets."""
+    if LAST_SESSION_FILE.exists():
+        try:
+            return LAST_SESSION_FILE.read_text(encoding="utf-8")
+        except OSError:
+            pass
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -938,6 +1006,21 @@ def check_config():
             print("  Claude Code: found")
         else:
             print("  Claude Code: NOT FOUND — install from https://docs.anthropic.com/claude-code")
+    elif provider == "ollama":
+        ollama_url = os.getenv("ALIVE_OLLAMA_URL", "http://localhost:11434")
+        try:
+            import urllib.request
+            with urllib.request.urlopen(f"{ollama_url}/api/tags", timeout=5) as resp:
+                data = json.loads(resp.read())
+                models = [m["name"] for m in data.get("models", [])]
+                print(f"  Ollama:    connected ({ollama_url})")
+                if models:
+                    print(f"  Models:    {', '.join(models[:5])}")
+                else:
+                    print(f"  Models:    none pulled — run: ollama pull {model}")
+        except Exception:
+            print(f"  Ollama:    NOT REACHABLE at {ollama_url}")
+            print(f"             Install from https://ollama.com")
     elif provider in ("anthropic", "openai"):
         if api_key:
             print(f"  API key:   configured ({api_key[:8]}...)")
@@ -1174,7 +1257,18 @@ def main():
 
         interval = get_wake_interval()
         log.info(f"Next wake in {interval}s")
-        time.sleep(interval)
+
+        # Interruptible sleep: check for .wake-now trigger every second
+        # Touch .wake-now from any external process (webhook, cron, script)
+        # to wake the AI immediately instead of waiting for the interval.
+        for _ in range(interval):
+            if WAKE_NOW_FILE.exists():
+                WAKE_NOW_FILE.unlink(missing_ok=True)
+                log.info("Wake trigger detected — waking early")
+                break
+            if check_killed():
+                break
+            time.sleep(1)
 
 
 if __name__ == "__main__":

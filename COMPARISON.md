@@ -6,7 +6,7 @@ This document compares `alive` to other popular autonomous agent frameworks to h
 
 | Factor | alive | OpenClaw | LangGraph | AutoGPT |
 |--------|-------|----------|-----------|---------|
-| **Lines of Code** | ~1,100 | 430,000+ | 50,000+ | 75,000+ |
+| **Lines of Code** | ~1,275 | 430,000+ | 50,000+ | 75,000+ |
 | **Dependencies** | 2 | 200+ | 50+ | 100+ |
 | **Setup Time** | 5 minutes | 1-2 hours | 30 minutes | 30 minutes |
 | **Audit Time** | 30 minutes | Weeks | Days | Days |
