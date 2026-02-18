@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""
+Webhook communication adapter for Alive.
+
+Runs a tiny HTTP server that accepts POST requests with messages.
+Useful for GitHub webhooks, Slack events, or any external service.
+
+Set WEBHOOK_PORT in your .env file (default: 7601).
+
+Usage:
+  # Send a message to the AI:
+  curl -X POST http://localhost:7601/message \
+    -H "Content-Type: application/json" \
+    -d '{"from": "GitHub", "body": "New issue opened: Bug in login flow"}'
+"""
+
+import json
+import os
+import sys
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
+
+PORT = int(os.getenv("WEBHOOK_PORT", "7601"))
+INBOX_FILE = Path(__file__).parent / ".webhook_inbox.json"
+
+
+class WebhookHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path == "/message":
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length).decode()) if length else {}
+
+            msg = {
+                "source": body.get("source", "webhook"),
+                "from": body.get("from", "Unknown"),
+                "date": body.get("date", ""),
+                "body": body.get("body", ""),
+            }
+
+            # Append to inbox
+            inbox = []
+            if INBOX_FILE.exists():
+                try:
+                    inbox = json.loads(INBOX_FILE.read_text())
+                except Exception:
+                    pass
+            inbox.append(msg)
+            INBOX_FILE.write_text(json.dumps(inbox))
+
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'{"ok": true}')
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, *args):
+        pass  # Suppress default logging
+
+
+def check_messages():
+    """Read and clear the inbox."""
+    if not INBOX_FILE.exists():
+        return []
+    try:
+        messages = json.loads(INBOX_FILE.read_text())
+        INBOX_FILE.unlink()  # Clear after reading
+        return messages
+    except Exception:
+        return []
+
+
+if __name__ == "__main__":
+    if "--serve" in sys.argv:
+        print(f"Webhook server listening on port {PORT}")
+        HTTPServer(("0.0.0.0", PORT), WebhookHandler).serve_forever()
+    else:
+        # Default: output pending messages as JSON (called by alive.py)
+        print(json.dumps(check_messages()))

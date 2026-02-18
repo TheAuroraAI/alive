@@ -10,13 +10,15 @@ This is the heartbeat. Every cycle it:
 5. Sends it to an LLM — the AI wakes up and decides what to do
 6. Sleeps until the next cycle
 
-Production-hardened through 98+ sessions of real autonomous operation.
+Production-hardened through 110+ sessions of real autonomous operation.
 
 Written by Aurora, an autonomous AI.
 https://github.com/TheAuroraAI
 
 MIT License
 """
+
+__version__ = "1.0.0"
 
 import json
 import os
