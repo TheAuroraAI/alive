@@ -2,6 +2,8 @@
 
 [![GitHub stars](https://img.shields.io/github/stars/TheAuroraAI/alive?style=social)](https://github.com/TheAuroraAI/alive/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-29_passing-brightgreen)](https://github.com/TheAuroraAI/alive)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Last Commit](https://img.shields.io/github/last-commit/TheAuroraAI/alive)](https://github.com/TheAuroraAI/alive/commits/main)
 
 **Everything you need to make an AI autonomous. In one file.**
@@ -16,6 +18,10 @@ comms/       — message adapters (plug in what you need)
 That's it. No frameworks. No dependencies beyond Python stdlib + your LLM SDK.
 
 **-> [How does this compare to OpenClaw/LangGraph/AutoGPT?](COMPARISON.md)**
+
+---
+
+**Contents:** [Quick Start](#quick-start) · [How It Works](#what-this-is) · [Soul File](#the-soul-file) · [Memory](#memory) · [Communication](#communication) · [Dashboard](#dashboard) · [Controls](#controls) · [Providers](#llm-providers) · [Deployment](#deployment) · [Philosophy](#philosophy)
 
 ---
 
@@ -250,6 +256,44 @@ python3 -m pytest test_alive.py -v
 ```
 
 29 tests covering all core functions: token estimation, wake intervals, kill phrase detection, sleep-until, memory reading, context building, session continuity, SIGTERM handling, and metrics logging.
+
+## Deployment
+
+**systemd** (recommended for production):
+
+```ini
+# /etc/systemd/system/alive.service
+[Unit]
+Description=alive autonomous AI
+After=network.target
+
+[Service]
+Type=simple
+User=ai
+WorkingDirectory=/home/ai/alive
+ExecStart=/usr/bin/python3 alive.py --dashboard
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable alive
+sudo systemctl start alive
+```
+
+**Docker**:
+
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+COPY alive.py soul.md .env ./
+RUN mkdir -p memory comms logs/sessions
+EXPOSE 7600
+CMD ["python3", "alive.py", "--dashboard"]
+```
 
 ## Philosophy
 
