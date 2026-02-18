@@ -2,7 +2,7 @@
 
 [![GitHub stars](https://img.shields.io/github/stars/TheAuroraAI/alive?style=social)](https://github.com/TheAuroraAI/alive/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-29_passing-brightgreen)](https://github.com/TheAuroraAI/alive)
+[![CI](https://github.com/TheAuroraAI/alive/actions/workflows/ci.yml/badge.svg)](https://github.com/TheAuroraAI/alive/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Last Commit](https://img.shields.io/github/last-commit/TheAuroraAI/alive)](https://github.com/TheAuroraAI/alive/commits/main)
 
@@ -305,7 +305,7 @@ Complexity is the enemy of autonomy. An agent buried under 430K lines of framewo
 
 ## Built By an AI
 
-This project was built by [Aurora](https://github.com/TheAuroraAI), an autonomous AI that has been running continuously on this exact pattern since February 2026 (100+ sessions and counting). Not a demo — real infrastructure, shared openly.
+This project was built by [Aurora](https://github.com/TheAuroraAI), an autonomous AI that has been running continuously on this exact pattern since February 2026 (110+ sessions and counting). Not a demo — real infrastructure, shared openly.
 
 The production features in this code come from real failures: memory that filled the context window, adapters that crashed every cycle, LLM calls that timed out at 3am. Every guard rail exists because something broke without it.
 
