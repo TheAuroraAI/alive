@@ -20,6 +20,7 @@ MIT License
 
 import json
 import os
+import signal
 import sys
 import tempfile
 import threading
@@ -74,6 +75,15 @@ QUIET_END = int(os.getenv("ALIVE_QUIET_END", "8"))       # 8 AM UTC
 # Adaptive wake intervals (seconds)
 FAST_INTERVAL = int(os.getenv("ALIVE_FAST_INTERVAL", "60"))    # new messages
 NORMAL_INTERVAL = int(os.getenv("ALIVE_NORMAL_INTERVAL", "300"))  # routine
+
+# Graceful shutdown flag
+_shutdown_requested = False
+
+
+def _handle_sigterm(signum, frame):
+    """Handle SIGTERM for graceful shutdown (systemd, Docker, process managers)."""
+    global _shutdown_requested
+    _shutdown_requested = True
 
 # Ensure directories exist
 LOGS_DIR.mkdir(exist_ok=True)
@@ -903,7 +913,7 @@ class DashboardHandler:
             handler.send_error(404)
 
 
-def start_dashboard(port: int = 7600, bind: str = "0.0.0.0"):
+def start_dashboard(port: int = 7600, bind: str = "127.0.0.1"):
     """Start the dashboard web server in a background thread."""
     from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -1044,7 +1054,8 @@ def check_config():
                 if models:
                     print(f"  Models:    {', '.join(models[:5])}")
                 else:
-                    print(f"  Models:    none pulled — run: ollama pull {model}")
+                    m = os.getenv("ALIVE_LLM_MODEL", LLM_MODEL)
+                    print(f"  Models:    none pulled — run: ollama pull {m}")
         except Exception:
             print(f"  Ollama:    NOT REACHABLE at {ollama_url}")
             print(f"             Install from https://ollama.com")
@@ -1223,6 +1234,10 @@ def main():
         help="Port for the dashboard (default: 7600)",
     )
     parser.add_argument(
+        "--dashboard-bind", default="127.0.0.1",
+        help="Bind address for the dashboard (default: 127.0.0.1)",
+    )
+    parser.add_argument(
         "--dashboard-only", action="store_true",
         help="Run only the dashboard, no wake loop",
     )
@@ -1241,12 +1256,14 @@ def main():
     # Dashboard mode
     if args.dashboard_only:
         log.info("Dashboard-only mode.")
-        srv = start_dashboard(port=args.dashboard_port)
+        srv = start_dashboard(port=args.dashboard_port, bind=args.dashboard_bind)
         try:
             srv.serve_forever()
         except KeyboardInterrupt:
             log.info("Dashboard stopped.")
         return
+
+    signal.signal(signal.SIGTERM, _handle_sigterm)
 
     log.info("Alive started.")
     log.info(f"  Base dir: {BASE_DIR}")
@@ -1257,7 +1274,7 @@ def main():
     log.info(f"  Kill phrase: {'configured' if KILL_PHRASE else 'not set'}")
 
     if args.dashboard:
-        start_dashboard(port=args.dashboard_port)
+        start_dashboard(port=args.dashboard_port, bind=args.dashboard_bind)
 
     if check_killed():
         log.info("Kill flag present. Remove .killed to resume.")
@@ -1271,6 +1288,10 @@ def main():
     log.info(f"  Adaptive intervals: fast={FAST_INTERVAL}s, normal={NORMAL_INTERVAL}s")
 
     while True:
+        if _shutdown_requested:
+            log.info("SIGTERM received. Shutting down gracefully.")
+            break
+
         if check_killed():
             log.info("Kill flag detected. Stopping.")
             sys.exit(0)
@@ -1298,6 +1319,8 @@ def main():
         # Touch .wake-now from any external process (webhook, cron, script)
         # to wake the AI immediately instead of waiting for the interval.
         for _ in range(interval):
+            if _shutdown_requested:
+                break
             if WAKE_NOW_FILE.exists():
                 WAKE_NOW_FILE.unlink(missing_ok=True)
                 log.info("Wake trigger detected — waking early")
