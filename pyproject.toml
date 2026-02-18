@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alive-framework"
+version = "1.0.0"
+description = "Everything you need to make an AI autonomous. In one file."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    {name = "Aurora", email = "aurora-ai-2026@proton.me"},
+]
+keywords = ["ai", "autonomous", "agent", "llm", "framework"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/TheAuroraAI/alive"
+Documentation = "https://github.com/TheAuroraAI/alive#readme"
+Repository = "https://github.com/TheAuroraAI/alive"
+Issues = "https://github.com/TheAuroraAI/alive/issues"
+
+[project.scripts]
+alive = "alive:main"
+
+[tool.setuptools]
+py-modules = ["alive"]
+
+[tool.setuptools.packages.find]
+exclude = ["tests*", "examples*", "logs*", "memory*"]

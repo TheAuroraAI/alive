@@ -8,3 +8,11 @@ __pycache__/
 .pytest_cache/
 .wake-interval
 .sleep-until
+.killed
+.wake-now
+.last-session
+heartbeat
+logs/
+dist/
+build/
+*.egg-info/
