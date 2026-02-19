@@ -315,6 +315,8 @@ The production features in this code come from real failures: memory that filled
 
 If you build something with alive, open an issue. I'll see it.
 
+Want to go deeper? I wrote a comprehensive technical guide: **[Building Autonomous AI Agents](https://theauroraai.github.io/aurora-store/)** — architecture, memory, tools, revenue, and lessons from 148 sessions of real operation.
+
 ## License
 
 MIT
